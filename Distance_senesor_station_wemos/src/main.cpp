@@ -4,23 +4,32 @@
 #include <Radar.h>
 
 
+// PINS
+// GPIO5 (D1) & GPIO4 (D2) are dedicated to I2C,
+// connected through WEMOS to the display
 int servo_pin = 12; // D6
-
 int echoPin = 13; // Echo Pin (D7)
 int trigPin = 14; // Trigger Pin (D5) 
 int pos = 0;    // variable to store the servo position
+
+// GPIO 2 (D4) is onboard LED and optional board LED
 
 int start_angle = 0;
 int end_angle = 180 ;
 int angle_step = 20;
 
+int OLED_text_size = 4 ;
+
+ 
+
+byte oled_i2c_addr = 0x3c;
  
 // Reset pin not used but needed for library
-#define OLED_RESET -1  //4
+#define OLED_RESET -1  // 4
 Adafruit_SSD1306 display(OLED_RESET);
 
   Radar MyRadar; 
-  
+    
 
 
 // *** Function headers *** 
@@ -40,19 +49,29 @@ void setup() {
   MyRadar.start_angle = start_angle;
   MyRadar.end_angle   = end_angle;
   MyRadar.angle_step  = angle_step; 
+  
 
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
 
-  servo_base.attach(servo_pin);  // attaches the servo on pin 9 
-    
+  MyRadar.us_echoPin = echoPin;
+  MyRadar.us_trigPin = trigPin;
+
+  MyRadar.servo_base.attach(servo_pin);
+  //servo_base.attach(servo_pin);  // attaches the servo on pin 9 
   delay(2000); // for debug, to allow time to open terminal
-    
-  byte oled_i2c_addr = 0x3c;
+
+  // test servo
+  Serial.print("testing servo....");
+  MyRadar.test_servo(); 
+  Serial.print("   Done testing servo");
+
+
+  Serial.print("Searching for Oled display on I2C. device: ");
+  Serial.println(oled_i2c_addr, HEX);
   int i2C_dev = I2C_scanner(oled_i2c_addr); // the 3C Hex is 60 Dec.
-  Serial.print("Oled display detected address:");
-  Serial.println(i2C_dev, HEX);
+  
 
   if (i2C_dev==0) {
     Serial.println("ERROR: ***** no I2C devices ");
@@ -60,8 +79,8 @@ void setup() {
   else {
     Serial.print("OK, I2C device found: ");
     Serial.println(i2C_dev, HEX);
-  }
-  
+  } // of IF
+
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   display.display();
   delay(2000);
@@ -73,36 +92,88 @@ void setup() {
   }
   else {
     sprintf(to_disp,"I2C: %x",i2C_dev);
-  }
-   
-  
-   display_scroll_text(to_disp);
+  } 
+  display_scroll_text(to_disp);
  
-  
-
   Serial.print("SSD1306_LCDHEIGHT: ");
   Serial.println(SSD1306_LCDHEIGHT);
-
   Serial.print("display.width() ");
-   Serial.println(display.width());
-   
-   Serial.print("display.height() ");
-   Serial.println(display.height());
-  delay(4000);
+  Serial.println(display.width()); 
+  Serial.print("display.height() ");
+  Serial.println(display.height());
+  delay(2000);
  
-
 } // of setup
 
-
+// *** LOOP ***
 void loop() {
-  int start_angle = 0; // starting angle
-  int end_angle = 180; // end angle
-  int step = 20 ;  // strp in angles
+  //int min_dist_1;
+  //int min_pos_1;
+  
+  digitalWrite(LED_BUILTIN, LOW); // led ON
+  MyRadar.radar_search(start_angle , end_angle, angle_step);
+  Serial.print(MyRadar.min_dist);
+  Serial.print(" / ");
+  Serial.println(MyRadar.min_dist_pos);
+
+  char to_disp[100];
+  char dist_str[10];
+  
+  strcpy(to_disp, "");
+
+/*
+  if (MyRadar.min_dist > 100 ) {
+    strcpy(to_disp, " "); // make the nu,bers aligned on the display
+  }
+  else if (MyRadar.min_dist > 10 ) {
+    strcpy(to_disp, "  ");
+  }
+  else {
+    strcpy(to_disp, "   ");
+  }
+  */
+  int len = strlen(to_disp);
+  Serial.print("to_disp length 1 : ");
+  Serial.println(len);
+
+  
+  itoa(MyRadar.min_dist, dist_str , 10);
+  len = strlen(dist_str);
+  Serial.print("dist_str length 1 : ");
+  Serial.println(len);
+
+
+
+  //min_dist_1 = MyRadar.min_dist;
+  //min_pos_1 = MyRadar.min_dist_pos;
+  Serial.print("Dist_str: ");
+  Serial.println(dist_str);
+  
+  //strcat(to_disp,"dist: ");
+  //Serial.println(to_disp);
+  strcat(to_disp,dist_str);
+  //Serial.println(to_disp);
+  len = strlen(to_disp);
+  Serial.print("to_disp length 2 : ");
+  Serial.println(len);
+ 
+  display_scroll_text(to_disp);
+  delay(1000);
+  
+  return;
+
 
   digitalWrite(LED_BUILTIN, HIGH); // led OFF
-  int measured_dist = radar_search(start_angle , end_angle, step); // search between 0 and 180
-  char to_disp[100];
-  itoa(measured_dist, to_disp , 10);
+  int measured_dist = radar_search(start_angle , end_angle, angle_step); // search between 0 and 180
+  //char dist_str [10];
+  //char to_disp[100];
+  itoa(measured_dist, dist_str , 10);
+  strcat(to_disp,"dist: ");
+  strcat(to_disp,dist_str);
+  Serial.println(to_disp);
+  Serial.println(to_disp);
+  delay(1000);
+return;
  //sprintf(to_disp,measured_dist);
   display_scroll_text(to_disp);
 
@@ -216,7 +287,7 @@ int I2C_scanner(byte _dev) {
 void display_scroll_text(char *msg) {
   display.clearDisplay();
 
-  display.setTextSize(2); // Draw 2X-scale text
+  display.setTextSize(OLED_text_size); // Draw 2X-scale text
   display.setTextColor(BLACK, WHITE);
   display.setCursor(10, 0);
   display.println(msg);
