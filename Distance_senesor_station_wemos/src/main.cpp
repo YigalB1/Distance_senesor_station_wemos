@@ -50,7 +50,6 @@ void setup() {
   MyRadar.end_angle   = end_angle;
   MyRadar.angle_step  = angle_step; 
   
-
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
@@ -67,12 +66,10 @@ void setup() {
   MyRadar.test_servo(); 
   Serial.print("   Done testing servo");
 
-
   Serial.print("Searching for Oled display on I2C. device: ");
   Serial.println(oled_i2c_addr, HEX);
   int i2C_dev = I2C_scanner(oled_i2c_addr); // the 3C Hex is 60 Dec.
   
-
   if (i2C_dev==0) {
     Serial.println("ERROR: ***** no I2C devices ");
   }
@@ -288,7 +285,7 @@ void display_scroll_text(char *msg) {
   display.clearDisplay();
 
   display.setTextSize(OLED_text_size); // Draw 2X-scale text
-  display.setTextColor(BLACK, WHITE);
+  display.setTextColor(WHITE,BLACK );
   display.setCursor(10, 0);
   display.println(msg);
   display.display();      // Show initial text
